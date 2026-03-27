@@ -1,0 +1,12 @@
+# Dataset path (relative to where train.py is run, or absolute)
+path: ../datasets/processed  # dataset root dir
+train: images/train  # train images (relative to 'path') 
+val: images/val  # val images (relative to 'path') 
+test: images/test # test images (optional)
+
+# Classes
+names:
+  0: car
+  1: bus
+  2: van
+  3: others

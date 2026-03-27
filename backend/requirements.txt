@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+opencv-python
+ultralytics
+python-multipart
+websockets
+sqlalchemy
+python-jose[cryptography]
+bcrypt

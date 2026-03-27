@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+    /* Deep Indigo/Slate */
+    color: white;
+}

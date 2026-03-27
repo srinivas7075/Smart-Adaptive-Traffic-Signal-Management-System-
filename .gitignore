@@ -1,0 +1,57 @@
+# --- OS Metadata ---
+.DS_Store
+Thumbs.db
+
+# --- Virtual Environments ---
+.venv/
+venv/
+env/
+ENV/
+pycache/
+*.pyc
+
+# --- Node Dependencies ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# --- Secret Keys & Environment ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- Machine Learning Models ---
+*.pt
+*.pth
+*.h5
+*.onnx
+ml-model/runs/
+ml-model/weights/
+
+# --- Large Datasets & Media ---
+datasets/
+data/
+*.csv
+*.json
+*.parquet
+*.zip
+*.tar.gz
+*.mp4
+*.avi
+*.mkv
+*.png
+*.jpg
+*.jpeg
+!README.md
+!docs/
+
+# --- Hardware/IDE Config ---
+.vscode/
+.idea/
+*.swp
+*.bak
+*.log
+startup_log.txt
