@@ -1,20 +1,51 @@
-# Smart Adaptive Traffic Signal Management System
+# 🚦 AI-Based Smart Adaptive Traffic Signal Management System
 
-An AI-powered urban traffic control platform using computer vision (YOLO) and machine learning (LSTM) for real-time intersection optimization.
+## 📌 Overview
 
-## 🚀 Project Overview
-This system identifies vehicle density via video feeds, predicts congestion, and adapts traffic signal timers to minimize wait times across intersections. It features automated AI-driven E-Challan generation for red light violations and speeding.
+This project presents an intelligent traffic management system that dynamically adjusts traffic signals using AI-based vehicle detection and adaptive control algorithms.
+
+It aims to reduce congestion, waiting time, and improve traffic flow efficiency in urban intersections.
+
+---
+
+## 🚀 Features
+
+* Real-time Vehicle Detection using YOLOv8
+* Adaptive Traffic Signal Control
+* Automated E-Challan System (Violation Detection)
+* Live Monitoring Dashboard
+* Traffic Analytics & Insights
+
+---
+
+## 🧠 Tech Stack
+
+* **Frontend:** React.js, Tailwind CSS, Chart.js
+* **Backend:** FastAPI, SQLAlchemy
+* **ML/CV:** YOLOv8, OpenCV, PyTorch
+* **Database:** SQLite
+
+---
+
+## ⚙️ System Architecture
+
+1. Video Input (Camera / Simulation)
+2. Vehicle Detection (YOLOv8)
+3. Feature Extraction (Count, Queue, Density)
+4. Adaptive Signal Logic
+5. Violation Detection (Red Light Jump)
+6. Dashboard Visualization
 
 ---
 
 ## 📹 Traffic Video Dataset
-Due to GitHub repository size limits, the raw traffic video footage used for simulation and testing is not directly included in this repository. 
-You can download the official Bellevue city dataset used for this project here:
+
+Due to GitHub repository size limits, raw traffic video footage is not directly included. You can download the official city dataset used for this project here:
 **[City of Bellevue Traffic Video Dataset](https://github.com/City-of-Bellevue/TrafficVideoDataset?tab=readme-ov-file)**
 
 ---
 
-## 🛠️ Setup & Cloning Instructions
+## ▶️ Setup & How to Run
 
 ### 1. Clone the Repository
 ```bash
@@ -23,16 +54,18 @@ cd Smart-Adaptive-Traffic-Signal-Management-System-
 ```
 
 ### 2. Backend Setup
+
 ```bash
 cd backend
 python -m venv venv
 venv\Scripts\activate      # Windows
-source venv/bin/activate   # Mac/Linux
+# source venv/bin/activate # Mac/Linux
 pip install -r requirements.txt
-python main.py
+uvicorn main:app --reload
 ```
 
 ### 3. Frontend Setup
+
 Open a new terminal window:
 ```bash
 cd frontend
@@ -42,12 +75,33 @@ npm run dev
 
 ---
 
-## 📂 Project Structure
+## 📊 Modules
 
-```text
-├── frontend/           # React.js dashboard UI
-├── backend/            # FastAPI Backend & SQLite DB
-├── ml-model/           # YOLO + LSTM models & training scripts
-├── simulation/         # SUMO/Traffic simulator configurations
-└── README.md           # Project Documentation
-```
+* Surveillance (Live Detection)
+* Traffic Signal Control
+* E-Challan System
+* Analytics Dashboard
+
+---
+
+## 📸 Demo
+
+### Surveillance System (Live Vision)
+![Surveillance](docs/images/surveillance.png)
+
+### Dashboard Overview
+![Overview](docs/images/overview.png)
+
+---
+
+## 🎯 Future Improvements
+
+* Multi-intersection optimization
+* Reinforcement Learning-based control
+* Real-time camera integration
+
+---
+
+## 👨‍💻 Author
+
+Srinivas
