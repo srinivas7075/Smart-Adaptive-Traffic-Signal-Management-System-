@@ -102,6 +102,4 @@ npm run dev
 
 ---
 
-## 👨‍💻 Author
 
-Srinivas
