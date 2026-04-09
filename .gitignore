@@ -55,3 +55,5 @@ data/
 *.bak
 *.log
 startup_log.txt
+
+videos/

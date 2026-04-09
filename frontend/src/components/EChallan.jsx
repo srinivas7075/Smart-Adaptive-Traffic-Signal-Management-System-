@@ -12,6 +12,7 @@ const EChallan = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [typeFilter, setTypeFilter] = useState('All');
+    const [dateFilter, setDateFilter] = useState('');
     const [selectedImage, setSelectedImage] = useState(null);
 
     // --- Phase 13/14: Manual Entry State ---
@@ -107,8 +108,14 @@ const EChallan = () => {
     const fetchViolations = async () => {
         try {
             let url = 'http://127.0.0.1:8080/api/v1/violations';
+            const params = new URLSearchParams();
+            if (dateFilter) params.append('date', dateFilter);
+            
             if (searchQuery) {
-                url = `http://127.0.0.1:8080/api/v1/violations/search?plate_number=${searchQuery}`;
+                params.append('plate_number', searchQuery);
+                url = `http://127.0.0.1:8080/api/v1/violations/search?${params.toString()}`;
+            } else if (dateFilter) {
+                url = `http://127.0.0.1:8080/api/v1/violations?${params.toString()}`;
             }
 
             const res = await fetch(url);
@@ -142,7 +149,7 @@ const EChallan = () => {
             if (!searchQuery) fetchViolations();
         }, 5000); // Live poll every 5s
         return () => clearInterval(interval);
-    }, [searchQuery]);
+    }, [searchQuery, dateFilter]);
 
     // Mark as Paid
     const handleMarkPaid = async (id) => {
@@ -193,7 +200,7 @@ const EChallan = () => {
                         <p><strong>Timestamp:</strong> ${new Date(v.timestamp).toLocaleString()}</p>
                         <p><strong>Location:</strong> ${v.intersection_id} - ${v.lane_id}</p>
                         <p><strong>Fine Amount:</strong> ₹${v.fine_amount}</p>
-                        <p><strong>AI Confidence Score:</strong> ${(v.ocr_confidence * 100).toFixed(2)}%</p>
+                        <p><strong>Enforcement Mode:</strong> Fully Automated AI Pipeline</p>
                     </div>
                     <div class="evidence">
                         <p><strong>Photographic Evidence:</strong></p>
@@ -378,7 +385,13 @@ const EChallan = () => {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-4 mb-4">
+            <div className="flex flex-wrap gap-4 mb-4">
+                <input 
+                    type="date"
+                    className="bg-slate-800 border border-white/10 text-xs text-white px-3 py-2 rounded-lg outline-none focus:border-cyan-500"
+                    value={dateFilter}
+                    onChange={e => setDateFilter(e.target.value)}
+                />
                 <select
                     className="bg-slate-800 border border-white/10 text-xs text-white px-3 py-2 rounded-lg outline-none focus:border-cyan-500"
                     value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
@@ -440,7 +453,6 @@ const EChallan = () => {
                                         ) : (
                                             <div className="flex items-center gap-2">
                                                 <Cpu className="w-3 h-3 text-cyan-400" />
-                                                <span className="text-[10px] text-cyan-400 font-mono">OCR: {((v.ocr_confidence || 0) * 100).toFixed(1)}%</span>
                                                 <span className="px-2 py-1 text-[9px] uppercase font-bold text-green-400 bg-green-400/10 border border-green-400/20 ml-2 rounded">AI Source</span>
                                             </div>
                                         )}
@@ -492,7 +504,7 @@ const EChallan = () => {
                                     </div>
                                 ) : (
                                     <img
-                                        src={`http://127.0.0.1:8080/api/v1/violations/${selectedImage.id}/image`}
+                                        src={`http://127.0.0.1:8080${selectedImage.evidence_image_path}`}
                                         alt="Violation Evidence"
                                         className="w-full h-auto object-contain max-h-[60vh]"
                                         onError={(e) => { e.target.src = 'https://via.placeholder.com/800x450.png?text=Evidence+Image+Not+Found' }}

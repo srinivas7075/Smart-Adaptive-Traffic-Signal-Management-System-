@@ -6,7 +6,7 @@ class TrafficData(Base):
     __tablename__ = "traffic_data"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     intersection_id = Column(String, default="INT-001", index=True)
     lane_id = Column(String, index=True) # "North", "South", "East", "West"
     vehicle_count = Column(Integer)
@@ -19,7 +19,7 @@ class SignalLog(Base):
     __tablename__ = "signal_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     intersection_id = Column(String, default="INT-001", index=True)
     active_lane = Column(String) # The lane that just turned GREEN
     green_duration = Column(Integer) # How long it stayed green
@@ -35,7 +35,7 @@ class Violation(Base):
     id = Column(Integer, primary_key=True, index=True)
     plate_number = Column(String, index=True) # Extracted by OCR
     violation_type = Column(String) # "Red Light Violation", "Speeding"
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     intersection_id = Column(String, default="INT-001")
     lane_id = Column(String) # "North", "South", "East", "West"
     fine_amount = Column(Float) # e.g. 500.00
@@ -47,8 +47,8 @@ class Violation(Base):
     officer_id = Column(Integer, index=True, nullable=True) # Foreign key equivalent for User.id
     remarks = Column(String, nullable=True) # Manual entry notes
     speed_detected = Column(Float, nullable=True) # Specifically for speeding
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 class ViolationRule(Base):
     __tablename__ = "violation_rules"
@@ -67,7 +67,7 @@ class AuditLog(Base):
     action_type = Column(String) # "CREATED", "STATUS_UPDATED"
     violation_id = Column(Integer, index=True)
     officer_id = Column(Integer, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     changes_made = Column(String) # JSON string of changes
 
 
@@ -87,7 +87,7 @@ class LoginLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     ip_address = Column(String)
     status = Column(String) # "Success", "Failed", "Locked"
 
@@ -95,7 +95,7 @@ class Accident(Base):
     __tablename__ = "accidents"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     intersection_id = Column(String, default="INT-001", index=True)
     lane_id = Column(String, index=True)
     severity = Column(String) # "Low", "Medium", "High"
@@ -118,7 +118,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     report_type = Column(String) # "Traffic", "Accident", "Violation", "System"
     data_payload = Column(String) # JSON payload of report data
     generated_by = Column(String)
@@ -127,7 +127,7 @@ class SystemLog(Base):
     __tablename__ = "system_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now)
     component = Column(String, index=True) # "YOLO", "LSTM", "API", "DB"
     status = Column(String) # "Info", "Warning", "Error"
     message = Column(String)

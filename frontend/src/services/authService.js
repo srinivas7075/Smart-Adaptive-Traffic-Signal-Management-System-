@@ -17,7 +17,7 @@ const login = async (username, password) => {
         }
 
         if (data.token) {
-            localStorage.setItem('user', JSON.stringify(data));
+            sessionStorage.setItem('user', JSON.stringify(data));
         }
         return data;
     } catch (error) {
@@ -30,11 +30,11 @@ const login = async (username, password) => {
 };
 
 const logout = () => {
-    localStorage.removeItem('user');
+    sessionStorage.removeItem('user');
 };
 
 const getCurrentUser = () => {
-    const userStr = localStorage.getItem('user');
+    const userStr = sessionStorage.getItem('user');
     if (!userStr) return null;
     try {
         const user = JSON.parse(userStr);

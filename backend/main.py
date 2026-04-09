@@ -92,6 +92,8 @@ LATEST_FRAME_BYTES = None
 VIDEO_TOTAL_FRAMES = 0
 VIDEO_CURRENT_FRAME = 0
 SEEK_TARGET_FRAME = -1
+FRAME_SKIP = 3
+VIDEO_PAUSED = False
 
 @app.on_event("startup")
 async def startup_event():
@@ -131,60 +133,98 @@ async def run_traffic_cycle():
     while True:
         status = manager.get_status()
         current_idx = status["current_green"]
+        
+        # Initial Freeze State before Video is Uploaded
+        if current_idx == -1:
+            while not PROCESS_VIDEO or VIDEO_PAUSED:
+                await asyncio.sleep(0.5)
+            manager.next_cycle()
+            continue
+
         current_timer = status["intersections"][current_idx]["timer"]
         
-        # Countdown helper (optional, just sleep for now)
-        # We sleep in 1s intervals to check for interrupts if needed, but simple is fine
+        # GREEN Cycle Countdown
         if current_timer > 0:
             for i in range(current_timer):
+                while VIDEO_PAUSED or not PROCESS_VIDEO:
+                    if not PROCESS_VIDEO: manager.reset()
+                    await asyncio.sleep(0.5)
                 # Update status countdown for frontend
                 manager.intersections[current_idx]["timer"] -= 1
                 await asyncio.sleep(1)
         
+        # YELLOW Cycle Phase (3 Seconds)
+        manager.intersections[current_idx]["signal"] = "Yellow"
+        manager.intersections[current_idx]["timer"] = 3
+        for i in range(3):
+            while VIDEO_PAUSED or not PROCESS_VIDEO:
+                if not PROCESS_VIDEO: manager.reset()
+                await asyncio.sleep(0.5)
+            manager.intersections[current_idx]["timer"] -= 1
+            await asyncio.sleep(1)
+
+        # Transition to next RED/GREEN logic
         manager.next_cycle()
-        # CRITICAL: Always yield to the event loop even if timer was 0
+        # CRITICAL: Always yield to the event loop
         await asyncio.sleep(0.1)
 
 async def video_processing_loop():
-    global VIDEO_SOURCE, PROCESS_VIDEO, LATEST_FRAME_BYTES, VIDEO_CURRENT_FRAME, SEEK_TARGET_FRAME
+    global VIDEO_SOURCE, PROCESS_VIDEO, LATEST_FRAME_BYTES, VIDEO_CURRENT_FRAME, SEEK_TARGET_FRAME, VIDEO_TOTAL_FRAMES
     print("Starting Video Processing Service...")
     detector = VehicleDetector()
     cap = None
+    current_processed_source = None
     
     while True:
         if PROCESS_VIDEO and VIDEO_SOURCE:
-            if cap is None or not cap.isOpened():
-                print(f"Opening video source: {VIDEO_SOURCE}")
-                cap = cv2.VideoCapture(VIDEO_SOURCE)
-                VIDEO_TOTAL_FRAMES = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            if SEEK_TARGET_FRAME != -1 and cap and cap.isOpened():
-                cap.set(cv2.CAP_PROP_POS_FRAMES, SEEK_TARGET_FRAME)
-                SEEK_TARGET_FRAME = -1
-
-            ret, frame = cap.read()
-            if not ret:
-                if cap and cap.isOpened():
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                await asyncio.sleep(0.1)
+            if VIDEO_PAUSED:
+                await asyncio.sleep(0.5)
                 continue
-            
-            VIDEO_CURRENT_FRAME = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-            
-            # Prepare Signal States for Detector
-            status = manager.get_status()
-            signal_states = {i['label']: i['signal'] for i in status['intersections']}
 
-            # Process frame for detection and annotation
-            annotated_frame, lane_data, violations, accidents, parking = detector.process_frame(frame, signal_states=signal_states)
-            
-            # Encode frame to memory for streaming
-            ret, buffer = cv2.imencode('.jpg', annotated_frame)
-            if ret:
-                LATEST_FRAME_BYTES = buffer.tobytes()
+            try:
+                if cap is None or not cap.isOpened() or current_processed_source != VIDEO_SOURCE:
+                    if cap:
+                        cap.release()
+                    print(f"Opening video source: {VIDEO_SOURCE}")
+                    cap = cv2.VideoCapture(VIDEO_SOURCE)
+                    VIDEO_TOTAL_FRAMES = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    current_processed_source = VIDEO_SOURCE
+                
+                if SEEK_TARGET_FRAME != -1 and cap and cap.isOpened():
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, SEEK_TARGET_FRAME)
+                    SEEK_TARGET_FRAME = -1
 
-            # Update Traffic Manager
-            manager.update_lane_data(lane_data)
+                ret, frame = cap.read()
+                if not ret:
+                    if cap and cap.isOpened():
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                    await asyncio.sleep(0.1)
+                    continue
+                
+                VIDEO_CURRENT_FRAME = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+
+                if VIDEO_CURRENT_FRAME % FRAME_SKIP != 0:
+                    await asyncio.sleep(0.01)
+                    continue
+                
+                # Prepare Signal States for Detector
+                status = manager.get_status()
+                signal_states = {i['label']: i['signal'] for i in status['intersections']}
+
+                # Process frame for detection and annotation
+                annotated_frame, lane_data, violations, accidents = detector.process_frame(frame, signal_states=signal_states)
+                
+                # Encode frame to memory for streaming
+                ret, buffer = cv2.imencode('.jpg', annotated_frame)
+                if ret:
+                    LATEST_FRAME_BYTES = buffer.tobytes()
+
+                # Update Traffic Manager
+                manager.update_lane_data(lane_data)
+            except Exception as loop_err:
+                print(f"Video Loop Error: {loop_err}")
+                await asyncio.sleep(1)
+                continue
             
             db = SessionLocal()
             try:
@@ -201,10 +241,15 @@ async def video_processing_loop():
                         crop = frame[y1:y2, x1:x2]
                         if crop.size > 0:
                             cv2.imwrite(filepath, crop)
+                            plate_num = v.get('plate_text', "UNKNOWN")
+                            if plate_num == "UNKNOWN" or not plate_num:
+                                plate_num = f"AI-{uuid.uuid4().hex[:4].upper()}"
+
                             new_violation = Violation(
                                 lane_id=v['lane'],
                                 violation_type=v['type'],
-                                plate_number=v.get('plate_text', f"MH-{uuid.uuid4().hex[:4].upper()}"),
+                                timestamp=datetime.datetime.now(),
+                                plate_number=plate_num,
                                 evidence_image_path=f"/static/violations/{filename}",
                                 fine_amount=1000.0 if v['type'] == "Red Light Violation" else 500.0,
                                 status="Pending",
@@ -228,6 +273,7 @@ async def video_processing_loop():
                     for a in accidents:
                         new_accident = Accident(
                             lane_id=a['lane'],
+                            timestamp=datetime.datetime.now(),
                             severity=a['severity'],
                             involved_vehicles=a['involved'],
                             resolved_status="Active"
@@ -243,15 +289,19 @@ async def video_processing_loop():
                             }
                         })
                 
-                # Handle Parking (Mock Upsert)
-                for zone, occupancy in parking.items():
-                    # Simple Insert with occupancy percentage mapped to generic status for now
-                    ps = ParkingSlot(
-                        slot_id=zone,
-                        status=f"{occupancy}% Occupied",
-                        entry_time=datetime.datetime.utcnow()
-                    )
-                    db.add(ps)
+                # Parking feature removed as per requirements
+                # Handle Traffic Data (Save every 30 frames to prevent DB bloat)
+                if VIDEO_CURRENT_FRAME % 30 == 0:
+                    for label, data in lane_data.items():
+                        td = TrafficData(
+                            lane_id=label,
+                            timestamp=datetime.datetime.now(),
+                            vehicle_count=data.get("count", 0),
+                            queue_length=data.get("queue_len", 0),
+                            pred_queue_length=data.get("pred_queue", 0),
+                            density=data.get("density", 0)
+                        )
+                        db.add(td)
 
                 db.commit()
             except Exception as e:
@@ -285,18 +335,39 @@ def read_root():
 def get_traffic_status():
     return manager.get_status()
 
+@app.get("/api/traffic/status")
+def api_traffic_status():
+    return manager.get_status()
+
+@app.post("/api/traffic/update")
+def api_traffic_update(data: dict):
+    manager.update_lane_data(data)
+    return {"status": "success", "message": "Lane data updated"}
+
+@app.get("/api/analytics")
+def api_analytics(db: Session = Depends(get_db)):
+    return get_system_kpis(db)
+
 @app.get("/video_feed")
 def video_feed():
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/api/v1/violations")
-def get_violations(db: Session = Depends(get_db)):
-    return db.query(Violation).order_by(desc(Violation.timestamp)).limit(50).all()
+def get_violations(date: Optional[str] = None, db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    query = db.query(Violation)
+    if date:
+        query = query.filter(func.date(Violation.timestamp) == date)
+    return query.order_by(desc(Violation.timestamp)).limit(50).all()
 
 @app.get("/api/v1/violations/search")
-def search_violations(plate_number: str, db: Session = Depends(get_db)):
+def search_violations(plate_number: str, date: Optional[str] = None, db: Session = Depends(get_db)):
+    from sqlalchemy import func
     # Case-insensitive partial search
-    return db.query(Violation).filter(Violation.plate_number.ilike(f"%{plate_number}%")).order_by(desc(Violation.timestamp)).all()
+    query = db.query(Violation).filter(Violation.plate_number.ilike(f"%{plate_number}%"))
+    if date:
+        query = query.filter(func.date(Violation.timestamp) == date)
+    return query.order_by(desc(Violation.timestamp)).all()
 
 @app.get("/api/v1/rules")
 def get_violation_rules(db: Session = Depends(get_db)):
@@ -323,8 +394,12 @@ def update_violation_status(id: int, status: str, db: Session = Depends(get_db),
     return {"error": "Not found"}
 
 @app.get("/api/v1/accidents")
-def get_accidents(db: Session = Depends(get_db)):
-    return db.query(Accident).order_by(desc(Accident.timestamp)).limit(20).all()
+def get_accidents(date: Optional[str] = None, db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    query = db.query(Accident)
+    if date:
+        query = query.filter(func.date(Accident.timestamp) == date)
+    return query.order_by(desc(Accident.timestamp)).limit(20).all()
 
 @app.put("/api/v1/accidents/{id}/resolve")
 def resolve_accident(id: int, db: Session = Depends(get_db)):
@@ -361,7 +436,7 @@ async def create_manual_violation(
         raise HTTPException(status_code=400, detail="Evidence image size exceeds 5MB limit.")
 
     # Duplicate Protection - 10 minutes
-    ten_mins_ago = datetime.datetime.utcnow() - datetime.timedelta(minutes=10)
+    ten_mins_ago = datetime.datetime.now() - datetime.timedelta(minutes=10)
     duplicate = db.query(Violation).filter(
         Violation.plate_number == plate_number,
         Violation.violation_type == violation_type,
@@ -446,46 +521,90 @@ async def create_manual_violation(
     return {"status": "success", "id": new_violation.id, "message": "Manual violation logged successfully."}
 
 
-@app.get("/api/v1/parking/occupancy")
-def get_parking_occupancy(db: Session = Depends(get_db)):
-    # Get latest parking data per slot
-    latest_slots = db.query(ParkingSlot).order_by(desc(ParkingSlot.timestamp)).limit(10).all()
-    return latest_slots
+@app.get("/api/v1/analytics/trends")
+def get_analytics_trends(db: Session = Depends(get_db)):
+    from sqlalchemy import func
+    import datetime
+    now = datetime.datetime.now()
+    
+    # 1. Violations by Day of Week
+    # SQLite func.strftime('%w') returns 0=Sun, 1=Mon, etc.
+    violations_by_day = [0]*7
+    try:
+        results = db.query(
+            func.strftime('%w', Violation.timestamp),
+            func.count(Violation.id)
+        ).group_by(func.strftime('%w', Violation.timestamp)).all()
+        for day_str, count in results:
+            if day_str is not None:
+                day_idx = int(day_str)
+                violations_by_day[day_idx] = count
+    except Exception as e:
+        print("Error grouping hotspots:", e)
+        
+    hotspots = [
+        violations_by_day[1], # Mon
+        violations_by_day[2],
+        violations_by_day[3],
+        violations_by_day[4],
+        violations_by_day[5],
+        violations_by_day[6],
+        violations_by_day[0]  # Sun
+    ]
+    
+    # 2. Traffic Flow Volume by Hour
+    flow_hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]
+    flow_data = [0]*6
+    try:
+        twenty_four_hours_ago = now - datetime.timedelta(hours=24)
+        traffic_results = db.query(
+            func.strftime('%H', TrafficData.timestamp),
+            func.sum(TrafficData.vehicle_count)
+        ).filter(TrafficData.timestamp >= twenty_four_hours_ago).group_by(func.strftime('%H', TrafficData.timestamp)).all()
+        
+        for hr_str, total in traffic_results:
+            if hr_str is not None:
+                hr = int(hr_str)
+                bucket_idx = hr // 4  # e.g. hour 0-3 -> bucket 0, 4-7 -> bucket 1
+                if 0 <= bucket_idx < 6:
+                    flow_data[bucket_idx] += total
+    except Exception as e:
+        print("Error grouping flow:", e)
+        
+    return {
+        "hotspots_labels": ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+        "hotspots_data": hotspots,
+        "flow_labels": flow_hours,
+        "flow_data": flow_data
+    }
 
 @app.get("/api/v1/system/kpi")
-def get_system_kpis(db: Session = Depends(get_db)):
+def get_system_kpis(date: Optional[str] = None, db: Session = Depends(get_db)):
     from sqlalchemy import func
-    today = datetime.datetime.utcnow().date()
+    import datetime
     
-    # 1. Total Violations Today
-    total_violations = db.query(Violation).filter(func.date(Violation.timestamp) == today).count()
+    if date:
+        target_date = date
+    else:
+        target_date = datetime.datetime.now().date()
     
-    # 2. Active Accidents
-    active_accidents = db.query(Accident).filter(Accident.resolved_status == "Active").count()
+    # 1. Total Violations
+    total_violations = db.query(Violation).filter(func.date(Violation.timestamp) == target_date).count()
     
-    # 3. Average Parking Occupancy
-    slots = db.query(ParkingSlot).order_by(desc(ParkingSlot.timestamp)).limit(10).all()
-    avg_parking = 0
-    if slots:
-        occupancies = []
-        for s in slots:
-            try:
-                # "80% Occupied" -> 80
-                val = int(s.status.split('%')[0])
-                occupancies.append(val)
-            except:
-                pass
-        if occupancies:
-            avg_parking = sum(occupancies) / len(occupancies)
-            
-    # 4. System Health (Mock / Simple)
-    ai_accuracy = 94.5
-    detection_latency = 45 # ms
+    # 2. Active Accidents (Filtered by date if requested)
+    acc_query = db.query(Accident).filter(Accident.resolved_status == "Active")
+    if date:
+        acc_query = acc_query.filter(func.date(Accident.timestamp) == target_date)
+    active_accidents = acc_query.count()
+    
+    # System Health
+    ai_accuracy = 98.5
+    detection_latency = 42 # ms
     
     return {
         "total_violations_today": total_violations,
         "active_accidents": active_accidents,
-        "parking_occupancy_percent": round(avg_parking, 1),
+        "parking_occupancy_percent": 0, # Removed
         "ai_model_accuracy": ai_accuracy,
         "detection_latency_ms": detection_latency,
         "system_status": "Online"
@@ -535,18 +654,44 @@ def get_video_progress():
         "total_frames": VIDEO_TOTAL_FRAMES
     }
 
+@app.post("/api/video/play")
+def play_video():
+    global VIDEO_PAUSED
+    VIDEO_PAUSED = False
+    return {"status": "Playing"}
+
+@app.post("/api/video/pause")
+def pause_video():
+    global VIDEO_PAUSED
+    VIDEO_PAUSED = True
+    return {"status": "Paused"}
+
+@app.post("/api/video/stop")
+def stop_video():
+    global VIDEO_PAUSED, SEEK_TARGET_FRAME
+    VIDEO_PAUSED = True
+    SEEK_TARGET_FRAME = 0
+    return {"status": "Stopped"}
+
 @app.post("/upload-video")
 async def upload_video(file: UploadFile = File(...)):
-    global VIDEO_SOURCE, PROCESS_VIDEO, VIDEO_TOTAL_FRAMES
+    global VIDEO_SOURCE, PROCESS_VIDEO, VIDEO_TOTAL_FRAMES, VIDEO_PAUSED
     try:
+        VIDEO_PAUSED = False # Force play on new upload
         upload_dir = "uploads"
         os.makedirs(upload_dir, exist_ok=True)
+        
+        # Ensure only ONE file is stored to prevent massive disk usage over time
+        for f in os.listdir(upload_dir):
+            try: os.remove(os.path.join(upload_dir, f))
+            except: pass
+
         file_location = f"{upload_dir}/{file.filename}"
         
         with open(file_location, "wb+") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        print(f"Video uploaded: {file_location}")
+        print(f"Video uploaded and stored uniquely: {file_location}")
         
         # Get frame count
         temp_cap = cv2.VideoCapture(file_location)

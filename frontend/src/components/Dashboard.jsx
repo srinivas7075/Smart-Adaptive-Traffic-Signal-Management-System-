@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import TrafficLight from './TrafficLight';
+import axios from 'axios';
 
 const Dashboard = () => {
-    // Initial state
     const [trafficData, setTrafficData] = useState({
         intersections: [
-            { id: 1, label: "North", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0 },
-            { id: 2, label: "South", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0 },
-            { id: 3, label: "East", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0 },
-            { id: 4, label: "West", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0 },
+            { id: 1, label: "North", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0, waiting_cycles: 0 },
+            { id: 2, label: "South", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0, waiting_cycles: 0 },
+            { id: 3, label: "East", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0, waiting_cycles: 0 },
+            { id: 4, label: "West", signal: "Red", timer: 0, vehicle_count: 0, queue_len: 0, density: 0, waiting_cycles: 0 },
         ]
     });
 
@@ -17,6 +17,7 @@ const Dashboard = () => {
     // Video Progress State
     const [videoProgress, setVideoProgress] = useState(0);
     const [isSeeking, setIsSeeking] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(null);
 
     useEffect(() => {
         // Reset Backend Simulation on Load
@@ -60,7 +61,7 @@ const Dashboard = () => {
     }, []);
 
     // Helper to get specific intersection by label
-    const getIntersection = (label) => trafficData.intersections.find(i => i.label === label) || { label, signal: 'Red', timer: 0, vehicle_count: 0, queue_len: 0, density: 0 };
+    const getIntersection = (label) => trafficData.intersections.find(i => i.label === label) || { label, signal: 'Red', timer: 0, vehicle_count: 0, queue_len: 0, density: 0, waiting_cycles: 0 };
 
     const handleSeek = async (e) => {
         const val = parseFloat(e.target.value);
@@ -168,24 +169,34 @@ const Dashboard = () => {
                                         if (!file) return;
                                         const formData = new FormData();
                                         formData.append("file", file);
+                                        setUploadProgress(0);
                                         try {
-                                            const res = await fetch("http://127.0.0.1:8080/upload-video", {
-                                                method: "POST",
-                                                body: formData
+                                            const res = await axios.post("http://127.0.0.1:8080/upload-video", formData, {
+                                                headers: { "Content-Type": "multipart/form-data" },
+                                                onUploadProgress: (progressEvent) => {
+                                                    const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                                                    setUploadProgress(percentCompleted);
+                                                }
                                             });
-                                            const data = await res.json();
+                                            const data = res.data;
                                             alert("Video Loading: " + data.status);
                                         } catch (err) {
                                             alert("Error: " + err.message);
+                                        } finally {
+                                            setUploadProgress(null);
+                                            e.target.value = null; // Clear input to allow re-uploading
                                         }
                                     }}
                                 />
                                 <label
                                     htmlFor="video-upload"
-                                    className="flex items-center justify-center w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-lg cursor-pointer transform transition-all active:scale-95 shadow-lg border border-blue-400/30"
+                                    style={uploadProgress !== null ? { background: `linear-gradient(90deg, #0284c7 ${uploadProgress}%, #1f2937 ${uploadProgress}%)` } : {}}
+                                    className={`flex items-center justify-center w-full py-3 px-4 text-white rounded-lg cursor-pointer transform transition-all shadow-lg border border-blue-400/30 ${uploadProgress !== null ? 'pointer-events-none' : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:scale-95'}`}
                                 >
-                                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                                    <span className="font-bold text-sm tracking-wide">UPLOAD TRAFFIC VIDEO</span>
+                                    <svg className={`w-5 h-5 mr-2 ${uploadProgress !== null ? 'animate-bounce' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                    <span className="font-bold text-sm tracking-wide">
+                                        {uploadProgress !== null ? `UPLOADING (${uploadProgress}%)` : 'UPLOAD TRAFFIC VIDEO'}
+                                    </span>
                                 </label>
                             </div>
                         </div>
@@ -290,7 +301,11 @@ const getCongestionBg = (density) => {
 
 // Adaptable Signal Card
 const SignalCard = ({ data }) => (
-    <div className={`flex flex-col items-center justify-center p-4 bg-gray-800 rounded-xl border ${data.signal === 'Green' ? 'border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' : 'border-gray-700/50'} shadow-sm w-full max-w-[140px] transition-all duration-500`}>
+    <div className={`flex flex-col items-center justify-center p-4 bg-gray-800 rounded-xl border ${
+        data.signal === 'Green' ? 'border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.1)]' 
+        : data.signal === 'Yellow' ? 'border-yellow-500/30 shadow-[0_0_15px_rgba(250,204,21,0.1)] bg-yellow-900/10'
+        : 'border-gray-700/50'
+    } shadow-sm w-full max-w-[140px] transition-all duration-500`}>
         <div className="mb-4 transform scale-100">
             <TrafficLight
                 label={data.label}
@@ -303,10 +318,11 @@ const SignalCard = ({ data }) => (
                 <span>Queue</span>
                 <span className="font-mono text-white">{data.queue_len ? Math.round(data.queue_len) : 0}m</span>
             </div>
-            {/* Prediction Indicator */}
             <div className="flex justify-between items-center text-[10px] text-gray-400">
-                <span>Pred.</span>
-                <span className="font-mono text-cyan-400">+{Math.round((data.queue_len || 0) * 0.1)}m</span>
+                <span>Wait Cycles</span>
+                <span className={`font-mono ${data.waiting_cycles >= 3 ? 'text-red-400 animate-pulse' : 'text-blue-400'}`}>
+                    {data.waiting_cycles || 0}
+                </span>
             </div>
         </div>
     </div>

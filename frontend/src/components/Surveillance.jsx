@@ -1,22 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import TrafficLight from './TrafficLight';
 import axios from 'axios';
-import { AlertCircle, CarFront } from 'lucide-react';
+import { AlertCircle, CarFront, Play, Pause, Square } from 'lucide-react';
 
-const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, handleSeek, setVideoProgress, setIsSeeking }) => {
+const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, handleSeek, setVideoProgress, setIsSeeking, reloadVideo }) => {
 
     const [accidents, setAccidents] = useState([]);
-    const [parking, setParking] = useState([]);
+    const [isPlaying, setIsPlaying] = useState(true);
+    const [uploadProgress, setUploadProgress] = useState(null);
+
+    const handlePlay = async () => {
+        setIsPlaying(true);
+        try { await axios.post('http://127.0.0.1:8080/api/video/play'); } catch(e){}
+    };
+    const handlePause = async () => {
+        setIsPlaying(false);
+        try { await axios.post('http://127.0.0.1:8080/api/video/pause'); } catch(e){}
+    };
+    const handleStop = async () => {
+        setIsPlaying(false);
+        try { await axios.post('http://127.0.0.1:8080/api/video/stop'); } catch(e){}
+    };
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [accRes, parkRes] = await Promise.all([
-                    axios.get('http://127.0.0.1:8080/api/v1/accidents'),
-                    axios.get('http://127.0.0.1:8080/api/v1/parking/occupancy')
-                ]);
+                const accRes = await axios.get('http://127.0.0.1:8080/api/v1/accidents');
                 setAccidents(accRes.data);
-                setParking(parkRes.data);
             } catch (err) {
                 console.error("Failed to fetch cross-module data", err);
             }
@@ -78,19 +88,21 @@ const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, han
                             </span>
                         </div>
 
-                        {/* Tactical Compass Overlay */}
-                        <div className="absolute top-4 right-4 pointer-events-none opacity-60 mix-blend-screen">
-                            <div className="w-12 h-12 relative flex items-center justify-center">
-                                {/* Outer Ring */}
-                                <div className="absolute inset-0 border-2 border-dashed border-cyan-500/50 rounded-full animate-[spin_10s_linear_infinite]"></div>
-                                {/* Inner Ring */}
-                                <div className="absolute inset-1 border border-blue-500/30 rounded-full"></div>
-                                {/* North Pointer */}
-                                <div className="absolute top-0 text-[8px] font-black text-red-500 -mt-1 font-mono">N</div>
-                                {/* Crosshairs */}
-                                <div className="w-full h-px bg-cyan-500/30 absolute"></div>
-                                <div className="h-full w-px bg-cyan-500/30 absolute"></div>
-                            </div>
+                        {/* Removed Tactical Compass from inside the video */}
+                    </div>
+
+                    {/* Tactical Compass (Moved Outside Video) */}
+                    <div className="absolute top-6 right-6 pointer-events-none opacity-80 z-20">
+                        <div className="w-14 h-14 relative flex items-center justify-center bg-slate-900/40 rounded-full backdrop-blur-md border border-cyan-500/20 shadow-lg">
+                            {/* Outer Ring */}
+                            <div className="absolute inset-0 border-2 border-dashed border-cyan-500/50 rounded-full animate-[spin_10s_linear_infinite]"></div>
+                            {/* Inner Ring */}
+                            <div className="absolute inset-1 border border-blue-500/30 rounded-full"></div>
+                            {/* North Pointer */}
+                            <div className="absolute top-0 text-[10px] font-black text-red-500 -mt-1.5 font-mono bg-slate-900 px-1 rounded">N</div>
+                            {/* Crosshairs */}
+                            <div className="w-full h-px bg-cyan-500/30 absolute"></div>
+                            <div className="h-full w-px bg-cyan-500/30 absolute"></div>
                         </div>
                     </div>
                 </div>
@@ -117,6 +129,19 @@ const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, han
                             />
                         </div>
 
+                        {/* Player Controls */}
+                        <div className="flex justify-center items-center gap-4 bg-white/5 py-2 rounded-xl border border-white/5 shadow-inner">
+                            <button onClick={handlePlay} className={`p-2 rounded-full transition-all ${isPlaying ? 'bg-cyan-500 text-white shadow-[0_0_15px_rgba(6,182,212,0.5)]' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
+                                <Play className="w-5 h-5" fill={isPlaying ? "currentColor" : "none"} />
+                            </button>
+                            <button onClick={handlePause} className={`p-2 rounded-full transition-all ${!isPlaying ? 'bg-yellow-500 text-white shadow-[0_0_15px_rgba(234,179,8,0.5)]' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
+                                <Pause className="w-5 h-5" fill={!isPlaying ? "currentColor" : "none"} />
+                            </button>
+                            <button onClick={handleStop} className="p-2 rounded-full text-red-400 hover:text-white hover:bg-red-500/20 transition-all">
+                                <Square className="w-5 h-5" />
+                            </button>
+                        </div>
+
                         <div className="flex justify-between items-center">
                             <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Data Source</label>
                             <span className="text-[10px] text-green-400 flex items-center gap-2 font-bold px-3 py-1 bg-green-500/10 rounded-full border border-green-500/20">
@@ -136,24 +161,37 @@ const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, han
                                     if (!file) return;
                                     const formData = new FormData();
                                     formData.append("file", file);
+                                    setUploadProgress(0);
                                     try {
-                                        const res = await fetch("http://127.0.0.1:8080/upload-video", {
-                                            method: "POST",
-                                            body: formData
+                                        const res = await axios.post("http://127.0.0.1:8080/upload-video", formData, {
+                                            headers: { "Content-Type": "multipart/form-data" },
+                                            onUploadProgress: (progressEvent) => {
+                                                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                                                setUploadProgress(percentCompleted);
+                                            }
                                         });
-                                        const data = await res.json();
-                                        alert("Video Loading: " + data.status);
+                                        const data = res.data;
+                                        console.log("Video Loading:", data.status);
+                                        // Force UI image loop to catch the new valid stream via Cache buster
+                                        if (reloadVideo) reloadVideo();
+                                        setIsPlaying(true);
                                     } catch (err) {
-                                        alert("Error: " + err.message);
+                                        console.error("Upload Error:", err.message);
+                                    } finally {
+                                        setUploadProgress(null);
+                                        e.target.value = null; // Clear input to allow re-uploading
                                     }
                                 }}
                             />
                             <label
                                 htmlFor="video-upload-surveillance"
-                                className="flex items-center justify-center w-full py-4 px-4 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl cursor-pointer transform transition-all active:scale-95 shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-400/30 group-hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]"
+                                style={uploadProgress !== null ? { background: `linear-gradient(90deg, #0284c7 ${uploadProgress}%, #0f172a ${uploadProgress}%)` } : {}}
+                                className={`flex items-center justify-center w-full py-4 px-4 text-white rounded-xl cursor-pointer transform transition-all shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-400/30 group-hover:shadow-[0_0_30px_rgba(37,99,235,0.5)] ${uploadProgress !== null ? 'pointer-events-none' : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:scale-95'}`}
                             >
-                                <svg className="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
-                                <span className="font-bold text-sm tracking-widest uppercase">UPLOAD TRAFFIC FEED</span>
+                                <svg className={`w-6 h-6 mr-3 ${uploadProgress !== null ? 'animate-bounce' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                                <span className="font-bold text-sm tracking-widest uppercase">
+                                    {uploadProgress !== null ? `UPLOADING (${uploadProgress}%)` : 'UPLOAD TRAFFIC FEED'}
+                                </span>
                             </label>
                         </div>
                     </div>
@@ -224,7 +262,7 @@ const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, han
                 </div>
 
                 {/* Cross-Module Integration Row */}
-                <div className="grid grid-cols-2 gap-6 mt-auto">
+                <div className="mt-auto">
                     {/* Accidents Integration */}
                     <div className="bg-black/20 rounded-3xl border border-white/5 p-5 backdrop-blur-sm shadow-inner group transition-all hover:bg-black/30">
                         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -251,28 +289,6 @@ const Surveillance = ({ trafficData, videoFeedUrl, videoProgress, isSeeking, han
                             </div>
                         )}
                     </div>
-
-                    {/* Smart Parking Integration */}
-                    <div className="bg-black/20 rounded-3xl border border-white/5 p-5 backdrop-blur-sm shadow-inner group transition-all hover:bg-black/30">
-                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <CarFront className="w-4 h-4 text-blue-400" />
-                            Smart Parking Occupancy
-                        </h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            {parking.length > 0 ? parking.slice(0, 4).map(slot => (
-                                <div key={slot.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col items-center justify-center relative overflow-hidden">
-                                    {/* Background fill based on occupancy text trick */}
-                                    <div className="absolute inset-x-0 bottom-0 bg-blue-500/20" style={{ height: slot.status.replace('% Occupied', '') + '%' }}></div>
-                                    <div className="text-[10px] text-gray-400 uppercase font-bold z-10">{slot.slot_id}</div>
-                                    <div className="text-lg font-black text-cyan-300 z-10">{slot.status}</div>
-                                </div>
-                            )) : (
-                                <div className="col-span-2 flex items-center justify-center h-20 text-xs font-bold text-gray-500 border border-dashed border-white/10 rounded-xl bg-white/5">
-                                    No Parking Sensors Active
-                                </div>
-                            )}
-                        </div>
-                    </div>
                 </div>
 
             </div>
@@ -285,6 +301,8 @@ const SignalCard = ({ data }) => (
     <div className={`flex flex-col items-center justify-center p-5 bg-slate-800/40 rounded-3xl border 
         ${data.signal === 'Green'
             ? 'border-green-500/50 shadow-[0_0_30px_-5px_rgba(34,197,94,0.3)] bg-gradient-to-b from-green-900/10 to-transparent'
+            : data.signal === 'Yellow'
+            ? 'border-yellow-500/50 shadow-[0_0_30px_-5px_rgba(250,204,21,0.3)] bg-gradient-to-b from-yellow-900/10 to-transparent'
             : 'border-white/5 shadow-lg bg-white/5'} 
         w-full max-w-[150px] transition-all duration-500 backdrop-blur-md group hover:-translate-y-1`}>
 

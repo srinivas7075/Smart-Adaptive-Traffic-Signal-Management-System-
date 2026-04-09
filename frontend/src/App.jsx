@@ -20,7 +20,9 @@ function App() {
 
   const [videoProgress, setVideoProgress] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
-  const videoFeedUrl = "http://127.0.0.1:8080/video_feed";
+  const [videoFeedTimestamp, setVideoFeedTimestamp] = useState(Date.now());
+  const videoFeedUrl = `http://127.0.0.1:8080/video_feed?t=${videoFeedTimestamp}`;
+  const reloadVideo = () => setVideoFeedTimestamp(Date.now());
 
   // ---- Data Polling ----
   useEffect(() => {
@@ -110,6 +112,7 @@ function App() {
                 isSeeking={isSeeking}
                 setIsSeeking={setIsSeeking}
                 handleSeek={handleSeek}
+                reloadVideo={reloadVideo}
               />
             )}
             {activeTab === 'echallan' && <EChallan />}

@@ -30,7 +30,7 @@ const AuthLayout = ({ children }) => {
         if (!isAuthenticated) return;
 
         let timeoutId;
-        const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+        const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
         const handleActivity = () => {
             clearTimeout(timeoutId);

@@ -17,14 +17,31 @@ const Overview = () => {
         system_status: "Connecting..."
     });
     const [alerts, setAlerts] = useState([]);
+    const [dateFilter, setDateFilter] = useState('');
 
     useEffect(() => {
-        // Fetch KPIs
         const fetchKpi = async () => {
             try {
-                // Ensure auth token is sent if needed, using interceptor or defaults if configured
-                const res = await axios.get('http://127.0.0.1:8080/api/v1/system/kpi');
+                let url = 'http://127.0.0.1:8080/api/v1/system/kpi';
+                if (dateFilter) url += `?date=${dateFilter}`;
+                
+                const res = await axios.get(url);
                 setKpi(res.data);
+                
+                // Fetch dynamic trends data
+                const trendsRes = await axios.get('http://127.0.0.1:8080/api/v1/analytics/trends');
+                const tData = trendsRes.data;
+                
+                if (chartRef.current) {
+                    chartRef.current.data.labels = tData.hotspots_labels;
+                    chartRef.current.data.datasets[0].data = tData.hotspots_data;
+                    chartRef.current.update();
+                }
+                if (trafficChartRef.current) {
+                    trafficChartRef.current.data.labels = tData.flow_labels;
+                    trafficChartRef.current.data.datasets[0].data = tData.flow_data;
+                    trafficChartRef.current.update();
+                }
             } catch (err) {
                 console.error("Failed to fetch KPIs:", err);
                 setKpi(prev => ({ ...prev, system_status: "Offline" }));
@@ -141,12 +158,22 @@ const Overview = () => {
             if (chartRef.current) chartRef.current.destroy();
             if (trafficChartRef.current) trafficChartRef.current.destroy();
         };
-    }, []);
+    }, [dateFilter]);
 
     return (
         <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+            {/* Header / Date Filter */}
+            <div className="flex justify-end mb-6">
+                <input 
+                    type="date"
+                    className="bg-slate-800 border border-white/10 text-sm text-white px-4 py-2 rounded-lg outline-none focus:border-cyan-500 shadow-xl"
+                    value={dateFilter}
+                    onChange={e => setDateFilter(e.target.value)}
+                />
+            </div>
+            
             {/* Header Stats */}
-            <div className="grid grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-3 gap-6 mb-8">
                 <StatCard
                     title="Active Accidents"
                     value={kpi.active_accidents.toString()}
@@ -165,15 +192,6 @@ const Overview = () => {
                     color="text-yellow-400"
                     detail="Logged via ANPR Pipeline"
                     bgGradient="from-yellow-500/10 to-orange-500/10"
-                />
-                <StatCard
-                    title="Avg Parking Load"
-                    value={`${kpi.parking_occupancy_percent}%`}
-                    icon={Car}
-                    trend="Stable"
-                    color="text-blue-400"
-                    detail="City-wide occupancy"
-                    bgGradient="from-blue-500/10 to-indigo-500/10"
                 />
                 <StatCard
                     title="AI System Health"

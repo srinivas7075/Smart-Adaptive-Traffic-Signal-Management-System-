@@ -3,59 +3,51 @@
 An AI-powered urban traffic control platform using computer vision (YOLO) and machine learning (LSTM) for real-time intersection optimization.
 
 ## 🚀 Project Overview
-This system identifies vehicle density via video feeds, predicts congestion, and adapts traffic signal timers to minimize wait times across intersections.
+This system identifies vehicle density via video feeds, predicts congestion, and adapts traffic signal timers to minimize wait times across intersections. It features automated AI-driven E-Challan generation for red light violations and speeding.
 
 ---
 
-## 👥 Team Roles & Responsibilities
+## 📹 Traffic Video Dataset
+Due to GitHub repository size limits, the raw traffic video footage used for simulation and testing is not directly included in this repository. 
+You can download the official Bellevue city dataset used for this project here:
+**[City of Bellevue Traffic Video Dataset](https://github.com/City-of-Bellevue/TrafficVideoDataset?tab=readme-ov-file)**
 
-| Role | Responsibility | Branch |
-| :--- | :--- | :--- |
-| **Project Lead** | System Integration & Main Repository Management | `main` / `dev` |
-| **UI/UX Engineer** | Frontend React Dashboard | `feature/frontend` |
-| **Backend Engineer** | FastAPI API & Database | `feature/backend` |
-| **ML Engineer (Vision)** | YOLO vehicle detection & OCR | `feature/ml-yolo` |
-| **ML Engineer (Stats)** | LSTM Traffic Prediction | `feature/ml-lstm` |
-| **Simulation Specialist** | Traffic Node Simulation | `feature/simulation` |
-| **Documentation Lead** | Diagrams, Technical Paper & PPT | `feature/docs` |
+---
+
+## 🛠️ Setup & Cloning Instructions
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/srinivas7075/Smart-Adaptive-Traffic-Signal-Management-System-.git
+cd Smart-Adaptive-Traffic-Signal-Management-System-
+```
+
+### 2. Backend Setup
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate      # Windows
+source venv/bin/activate   # Mac/Linux
+pip install -r requirements.txt
+python main.py
+```
+
+### 3. Frontend Setup
+Open a new terminal window:
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ---
 
 ## 📂 Project Structure
 
 ```text
-├── frontend/           # React.js dashboard
-├── backend/            # FastAPI APIs
-├── ml-model/           # YOLO + LSTM models & weights
-├── simulation/         # SUMO/Traffic simulator files
-├── docs/               # PPT, Diagrams & Paper
-└── datasets/           # Dataset links & Metadata
+├── frontend/           # React.js dashboard UI
+├── backend/            # FastAPI Backend & SQLite DB
+├── ml-model/           # YOLO + LSTM models & training scripts
+├── simulation/         # SUMO/Traffic simulator configurations
+└── README.md           # Project Documentation
 ```
-
----
-
-## 🛠️ Setup Instructions
-
-### 1. Backend Setup
-1. `cd backend`
-2. `python -m venv venv`
-3. `venv\Scripts\activate` (Windows)
-4. `pip install -r requirements.txt`
-5. `python main.py`
-
-### 2. Frontend Setup
-1. `cd frontend`
-2. `npm install`
-3. `npm run dev`
-
----
-
-## 📂 Git & Workflow Rules
-For detailed commands and branch strategies, please refer to the **[GIT-WORKFLOW-GUIDE.md](docs/GIT-WORKFLOW-GUIDE.md)**.
-
-> [!IMPORTANT]
-> **STRICT PROJECT RULES:**
-> 1. No direct pushes to `main`.
-> 2. No editing other team members' folders.
-> 3. Always `git pull origin dev` before starting work.
-> 4. Only small, atomic commits allowed.
